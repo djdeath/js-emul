@@ -24,8 +24,9 @@ let runFunction = function(func) {
   let ev = function(start, stop, name, value) {
     if (evs.length > 10000)
       throw new Error('Infinite loop');
-    if (typeof value !== 'function')
+    if (typeof value !== 'function') {
       evs.push({ start: start, stop: stop, name: name, value: JSON.stringify(value) });
+    }
     return value;
   };
   func(ev);
@@ -42,7 +43,7 @@ let indexToPosition = function(source, idx) {
 
 
 let eventsToString = function(input, events) {
-  let lines = [], maxLine = -1;
+  let lines = [], currentLines = [], maxLine = -1, lastLine = -1;
 
   let eventToString = function(event) {
     return event.name + ' = ' + event.value;
@@ -55,49 +56,49 @@ let eventsToString = function(input, events) {
     return s;
   };
 
-  let setLine = function(line, text) {
-
-
-  };
-
   let updateEventLine = function(line, text) {
     let s = 0;
-    for (let i = line + 1; i <= maxLine; i++) {
+    for (let i = 0; i <= maxLine; i++) {
       if (lines[i])
         s = Math.max(lines[i].length, s);
     }
 
-    if (lines[line])
+    if (s == 0)
+      return text;
+    else if (lines[line])
       return lines[line] + spaces(s - lines[line].length) + ' | ' + text;
     else
       return spaces(s) + ' | ' + text;
   };
 
+  let copyArray = function(array, len) {
+    let ret = [];
+    for (let i = 0; i < len; i++)
+      ret[i] = array[i];
+    return ret;
+  };
+
   for (let i = 0; i < events.length; i++) {
     let ev = events[i];
     let line = indexToPosition(input, ev.start);
-    if (maxLine < line)
-      lines[line] = eventToString(ev);
-    else
-      lines[line] = updateEventLine(line, eventToString(ev));
+    if (line <= lastLine)
+      lines = copyArray(currentLines, maxLine + 1);
+    currentLines[line] = updateEventLine(line, eventToString(ev));
+    lastLine = line;
     maxLine = Math.max(line, maxLine);
   }
 
   let s = '';
   for (let i = 0; i <= maxLine ; i++) {
-    if (lines[i])
-      s += lines[i];
+    if (currentLines[i])
+      s += currentLines[i];
     s += '\n';
   }
   return s;
 };
 
 let toTraces = function(input) {
-  try {
-    return eventsToString(input, runFunction(toFunction(translate(input))));
-  } catch (e) {
-    return e.message;
-  }
+  return eventsToString(input, runFunction(toFunction(translate(input))));
 };
 
 Gtk.init(null, null);
@@ -126,11 +127,15 @@ paned.add2(s2);
 paned.show();
 
 v1.buffer.connect('changed', function() {
-  let b1 = v1.buffer;
-  v2.buffer.set_text(toTraces(b1.get_text(b1.get_start_iter(),
-                                          b1.get_end_iter(),
-                                          false)),
-                     -1);
+  try {
+    let b1 = v1.buffer;
+    v2.buffer.set_text(toTraces(b1.get_text(b1.get_start_iter(),
+                                            b1.get_end_iter(),
+                                            false)),
+                       -1);
+  } catch (e) {
+    log(e);
+  }
 });
 
 let win = new Gtk.Window();

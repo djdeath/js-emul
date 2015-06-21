@@ -143,7 +143,7 @@ let BSJSParser = ometa(BaseStrParser) {
                              ( "finally" block
                              | empty -> [#get, 'undefined'] ):f                      -> [#try, t, e, c, f]
                | "return" ( expr
-                          | empty -> [#get, 'undefined'] ):e sc                      -> [#return, e]
+                          | empty -> [#get, 'undefined'] ):e sc                      -> [#return, e, @location]
                | "with" "(" expr:x ")" stmt:s                                        -> [#with, x, s]
                | expr:e sc                                                           -> e
                | ";"                                                                 -> [#get, "undefined"],
@@ -188,7 +188,7 @@ let BSJSTranslator = ometa {
   binop    :op trans:x trans:y                          -> ('(' + x + ' ' + op + ' ' + y + ')'),
   preop    :op trans:x                                  -> (op + x),
   postop   :op trans:x                                  -> (x + op),
-  return   trans:x                                      -> ('return ' + x),
+  return   trans:x :p                                   -> ('return ' + emitValue(p, 'return', x)),
   with     trans:x curlyTrans:s                         -> ('with(' + x + ')' + s),
   if       trans:cond curlyTrans:t curlyTrans:e         -> ('if(' + cond + ')' + t + 'else' + e),
   condExpr trans:cond trans:t trans:e                   -> ('(' + cond + '?' + t + ':' + e + ')'),
