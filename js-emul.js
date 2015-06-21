@@ -1,6 +1,13 @@
+const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const GtkSource = imports.gi.GtkSource;
 const jsEmul = imports.jsEmul;
+
+let loadFile = function(path) {
+  let file = Gio.File.new_for_path(path);
+  let [, source] = file.load_contents(null);
+  return '' + source;
+};
 
 let translate = function(input) {
   let structure = jsEmul.BSJSParser.matchAllStructure(input, 'topLevel', undefined);
@@ -15,7 +22,10 @@ let toFunction = function(code) {
 let runFunction = function(func) {
   let evs = [];
   let ev = function(start, stop, name, value) {
-    evs.push({ start: start, stop: stop, name: name, value: '' + value });
+    if (evs.length > 10000)
+      throw new Error('Infinite loop');
+    if (typeof value !== 'function')
+      evs.push({ start: start, stop: stop, name: name, value: JSON.stringify(value) });
     return value;
   };
   func(ev);
@@ -32,7 +42,7 @@ let indexToPosition = function(source, idx) {
 
 
 let eventsToString = function(input, events) {
-  let lines = [], maxLine = -1, maxLineLength = 0;
+  let lines = [], maxLine = -1;
 
   let eventToString = function(event) {
     return event.name + ' = ' + event.value;
@@ -45,12 +55,22 @@ let eventsToString = function(input, events) {
     return s;
   };
 
-  let updateEventLine = function(line, event) {
-    if (line)
-      return line + spaces(maxLineLength - line.length) + ' | ' + eventToString(event)
-    else
-      return spaces(maxLineLength) + ' | ' + eventToString(event);
+  let setLine = function(line, text) {
 
+
+  };
+
+  let updateEventLine = function(line, text) {
+    let s = 0;
+    for (let i = line + 1; i <= maxLine; i++) {
+      if (lines[i])
+        s = Math.max(lines[i].length, s);
+    }
+
+    if (lines[line])
+      return lines[line] + spaces(s - lines[line].length) + ' | ' + text;
+    else
+      return spaces(s) + ' | ' + text;
   };
 
   for (let i = 0; i < events.length; i++) {
@@ -59,11 +79,10 @@ let eventsToString = function(input, events) {
     if (maxLine < line)
       lines[line] = eventToString(ev);
     else
-      lines[line] = updateEventLine(lines[line], ev);
-    maxLineLength = Math.max(maxLineLength, lines[line].length);
-    maxLine = line;
+      lines[line] = updateEventLine(line, eventToString(ev));
+    maxLine = Math.max(line, maxLine);
   }
-  log(lines.length);
+
   let s = '';
   for (let i = 0; i <= maxLine ; i++) {
     if (lines[i])
@@ -83,13 +102,13 @@ let toTraces = function(input) {
 
 Gtk.init(null, null);
 
-let createView = function(language) {
+let createView = function(args) {
   let view = new GtkSource.View();
-  view.monospace = true;
+  view.monospace = args.monospace;
   view.visible = true;
-  if (language) {
+  if (args.language) {
     let lang_manager = GtkSource.LanguageManager.get_default();
-    view.buffer.set_language(lang_manager.get_language(language));
+    view.buffer.set_language(lang_manager.get_language(args.language));
   }
 
   let scroll = new Gtk.ScrolledWindow();
@@ -100,9 +119,9 @@ let createView = function(language) {
 };
 
 let paned = new Gtk.Paned();
-let [v1, s1] = createView('js');
+let [v1, s1] = createView({ language: 'js' });
 paned.add1(s1);
-let [v2, s2] = createView('js');
+let [v2, s2] = createView({ language: 'js', monospace: true });
 paned.add2(s2);
 paned.show();
 
@@ -122,5 +141,7 @@ win.show();
 const WIDTH = 800
 win.resize(WIDTH, 600);
 paned.position = WIDTH / 2;
+
+v1.buffer.set_text(loadFile('example.js'), -1);
 
 Gtk.main();
