@@ -138,6 +138,33 @@ v1.buffer.connect('changed', function() {
   }
 });
 
+let addHighlightTag = function(buffer) {
+  let tag_table = buffer.get_tag_table();
+  let tag = new Gtk.TextTag({ name: 'highlight',
+                              background: '#fde5f6' });
+  tag_table.add(tag);
+};
+addHighlightTag(v1.buffer);
+addHighlightTag(v2.buffer);
+
+let highlightLine = function(buffer, line) {
+  buffer.remove_tag_by_name('highlight', buffer.get_start_iter(), buffer.get_end_iter());
+  buffer.apply_tag_by_name('highlight',
+                           buffer.get_iter_at_line(line),
+                           buffer.get_iter_at_line(line + 1));
+};
+
+let genMoveLineCursorFunc = function(from, to) {
+  return function() {
+    let fromIter = from.get_iter_at_offset(from.cursor_position);
+    highlightLine(from, fromIter.get_line());
+    highlightLine(to, fromIter.get_line());
+  };
+};
+
+v1.buffer.connect('notify::cursor-position', genMoveLineCursorFunc(v1.buffer, v2.buffer));
+v2.buffer.connect('notify::cursor-position', genMoveLineCursorFunc(v2.buffer, v1.buffer));
+
 let win = new Gtk.Window();
 win.connect('destroy', Gtk.main_quit);
 win.add(paned);
