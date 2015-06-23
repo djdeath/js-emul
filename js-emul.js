@@ -80,7 +80,7 @@ let eventsToString = function(input, events) {
 
   for (let i = 0; i < events.length; i++) {
     let ev = events[i];
-    let line = indexToPosition(input, ev.start);
+    let line = indexToPosition(input, Math.round((ev.start + ev.stop) / 2));
     if (line <= lastLine)
       lines = copyArray(currentLines, maxLine + 1);
     currentLines[line] = updateEventLine(line, eventToString(ev));
