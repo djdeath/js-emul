@@ -120,7 +120,7 @@ let createView = function(args) {
 };
 
 let paned = new Gtk.Paned();
-let [v1, s1] = createView({ language: 'js' });
+let [v1, s1] = createView({ language: 'js', monospace: true });
 paned.add1(s1);
 let [v2, s2] = createView({ language: 'js', monospace: true });
 paned.add2(s2);
