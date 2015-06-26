@@ -22,8 +22,11 @@ let toFunction = function(code) {
 let runFunction = function(func) {
   let evs = [];
   let ev = function(start, stop, name, value) {
-    if (evs.length > 10000)
-      throw new Error('Infinite loop');
+    if (evs.length > 1000) {
+      let error = new Error('Infinite loop');
+      error.evs = evs;
+      throw error;
+    }
     if (typeof value !== 'function') {
       evs.push({ start: start, stop: stop, name: name, value: JSON.stringify(value) });
     }
@@ -98,7 +101,13 @@ let eventsToString = function(input, events) {
 };
 
 let toTraces = function(input) {
-  return eventsToString(input, runFunction(toFunction(translate(input))));
+  try {
+    return eventsToString(input, runFunction(toFunction(translate(input))));
+  } catch (e) {
+    if (e.evs)
+      return eventsToString(input, e.evs);
+    throw e;
+  }
 };
 
 Gtk.init(null, null);
