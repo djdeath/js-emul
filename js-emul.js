@@ -5,15 +5,10 @@ const GtkSource = imports.gi.GtkSource;
 const Mainloop = imports.mainloop;
 
 const jsEmul = imports.jsEmul;
+const Utils = imports.Utils;
 
 if (ARGV.length < 1)
   throw new Error("Need at least one argument");
-
-let loadFile = function(path) {
-  let file = Gio.File.new_for_path(path);
-  let [, source] = file.load_contents(null);
-  return '' + source;
-};
 
 /*
   TODO: make this a lib...
@@ -266,6 +261,7 @@ v1.buffer.connect('changed', function() {
                             false);
     _events = [];
     sendCommand({ code: translate(input) });
+    Utils.delayedSaveFile(ARGV[0], input);
   } catch (e) {
     log('Translation error: ' + e);
   }
@@ -273,6 +269,6 @@ v1.buffer.connect('changed', function() {
 
 /**/
 
-v1.buffer.set_text(loadFile(ARGV[0]), -1);
+v1.buffer.set_text(Utils.loadFile(ARGV[0]), -1);
 
 Gtk.main();
