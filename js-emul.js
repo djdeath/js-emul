@@ -1,7 +1,13 @@
+const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const GtkSource = imports.gi.GtkSource;
+const Mainloop = imports.mainloop;
+
 const jsEmul = imports.jsEmul;
+
+if (ARGV.length < 1)
+  throw new Error("Need at least one argument");
 
 let loadFile = function(path) {
   let file = Gio.File.new_for_path(path);
@@ -9,31 +15,82 @@ let loadFile = function(path) {
   return '' + source;
 };
 
+/*
+  TODO: make this a lib...
+ */
+
+const _DEBUG_IO = false;
+let _debugIo = function(pre, data) {
+  if (_DEBUG_IO) log(pre + data);
+};
+
+let _readLine = function(stream, process) {
+  stream.read_line_async(0, null, function(stream, res) {
+    try {
+      let [data, length] = stream.read_line_finish(res);
+      if (length > 0) {
+        _readLine(stream, process);
+        process(data);
+      } else
+        log('Server gone');
+    } catch (error) {
+      log('Server connection error : ' + error);
+    }
+  });
+};
+
+let _outputStream = null;
+
+let sendCommand = function(cmd) {
+  let data = JSON.stringify(cmd);
+  _debugIo('OUT: ', data);
+  _outputStream.write_all(data + '\n', null);
+};
+
+let startHelper = function(callback) {
+  let [success, pid, inputFd, outputFd, errorFd] =
+      GLib.spawn_async_with_pipes(null,
+                                  ['./js-emul-helper'],
+                                  GLib.get_environ(),
+                                  GLib.SpawnFlags.DEFAULT,
+                                  null);
+  let _inputStream = new Gio.UnixInputStream({ fd: outputFd,
+                                               close_fd: true, });
+  let _errorStream = new Gio.UnixInputStream({ fd: errorFd,
+                                               close_fd: true, });
+  _outputStream = new Gio.UnixOutputStream({ fd: inputFd,
+                                             close_fd: true, });
+
+  _readLine(Gio.DataInputStream.new(_inputStream), function(data) {
+    try {
+      _debugIo('IN: ', data);
+      let cmd = JSON.parse(data);
+
+      if (cmd.error) {
+        let error = new Error();
+        for (let i in cmd.error)
+          error[i] = cmd.error[i];
+        callback(error);
+      }
+      else
+        callback(null, cmd);
+    } catch (error) {
+      log('Client: ' + error);
+      log(error.stack);
+    }
+  }.bind(this));
+  _readLine(Gio.DataInputStream.new(_errorStream), function(data) {
+    log('Server: ' + data);
+  }.bind(this));
+
+};
+
+/**/
+
 let translate = function(input) {
   let structure = jsEmul.BSJSParser.matchAllStructure(input, 'topLevel', undefined);
   let code = jsEmul.BSJSTranslator.match(structure.value, 'trans', undefined);
   return code;
-};
-
-let toFunction = function(code) {
-  return eval('(function () {return function($e) {' + code + '};})()');
-};
-
-let runFunction = function(func) {
-  let evs = [];
-  let ev = function(start, stop, name, value) {
-    if (evs.length > 1000) {
-      let error = new Error('Infinite loop');
-      error.evs = evs;
-      throw error;
-    }
-    if (typeof value !== 'function') {
-      evs.push({ start: start, stop: stop, name: name, value: JSON.stringify(value) });
-    }
-    return value;
-  };
-  func(ev);
-  return evs;
 };
 
 let indexToPosition = function(source, idx) {
@@ -43,7 +100,6 @@ let indexToPosition = function(source, idx) {
       lineNum++;
   return lineNum;
 };
-
 
 let eventsToString = function(input, events) {
   let lines = [], currentLines = [], maxLine = -1, lastLine = -1;
@@ -110,6 +166,8 @@ let toTraces = function(input) {
   }
 };
 
+/**/
+
 Gtk.init(null, null);
 
 let createView = function(args) {
@@ -130,22 +188,12 @@ let createView = function(args) {
 
 let paned = new Gtk.Paned();
 let [v1, s1] = createView({ language: 'js', monospace: true });
+let b1 = v1.buffer;
 paned.add1(s1);
 let [v2, s2] = createView({ language: 'js', monospace: true });
+let b2 = v2.buffer;
 paned.add2(s2);
 paned.show();
-
-v1.buffer.connect('changed', function() {
-  try {
-    let b1 = v1.buffer;
-    v2.buffer.set_text(toTraces(b1.get_text(b1.get_start_iter(),
-                                            b1.get_end_iter(),
-                                            false)),
-                       -1);
-  } catch (e) {
-    log(e);
-  }
-});
 
 let addHighlightTag = function(buffer) {
   let tag_table = buffer.get_tag_table();
@@ -183,6 +231,48 @@ const WIDTH = 800
 win.resize(WIDTH, 600);
 paned.position = WIDTH / 2;
 
-v1.buffer.set_text(loadFile('example.js'), -1);
+/**/
+
+let _events = [];
+let _rerenderTimeoutId = 0;
+let _rerenderEvents = function() {
+  let input = b1.get_text(b1.get_start_iter(),
+                          b1.get_end_iter(),
+                          false);
+  v2.buffer.set_text(eventsToString(input, _events), -1);
+
+  _rerenderTimeoutId = 0;
+  return false;
+};
+
+let addEvent = function(error, cmd) {
+  if (error) {
+    log('Server error: ' + error);
+    return;
+  }
+  _events.push(cmd.event);
+
+  if (_rerenderTimeoutId != 0)
+    Mainloop.source_remove(_rerenderTimeoutId);
+  _rerenderTimeoutId = Mainloop.timeout_add(50, _rerenderEvents);
+};
+
+startHelper(addEvent)
+
+v1.buffer.connect('changed', function() {
+  try {
+    let input = b1.get_text(b1.get_start_iter(),
+                            b1.get_end_iter(),
+                            false);
+    _events = [];
+    sendCommand({ code: translate(input) });
+  } catch (e) {
+    log('Translation error: ' + e);
+  }
+});
+
+/**/
+
+v1.buffer.set_text(loadFile(ARGV[0]), -1);
 
 Gtk.main();
