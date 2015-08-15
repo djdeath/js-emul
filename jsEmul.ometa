@@ -80,7 +80,7 @@ let BSJSParser = ometa(BaseStrParser) {
   primExpr     = primExpr:p ( "[" expr:i "]"                                         -> [#getp, i, p]
                             | "." "name":m "(" listOf(#expr, ','):as ")"             -> [#send, m, p].concat(as)
                             | "." "name":f                                           -> [#getp, [#string, f], p]
-                            | "(" listOf(#expr, ','):as ")"                          -> [#call, p].concat(as)
+                            | "(" listOf(#expr, ','):as ")"                          -> [#call, p].concat(as).concat(@location)
                             )
                | primExprHd,
   primExprHd   = "(" expr:e ")"                                                      -> e
@@ -183,12 +183,12 @@ let BSJSTranslator = ometa {
   unop     :op trans:x                                  -> ('(' + op + ' ' + x + ')'),
   getp     trans:fd trans:x                             -> (x + '[' + fd + ']'),
   get      :x                                           -> x,
-  set      trans:lhs trans:rhs :p                       -> ('(' + lhs + '=' + emitValue(p, lhs, rhs) + ')'),
-  mset     trans:lhs :op trans:rhs :p                   -> ('(' + lhs + '=' + emitValue(p, lhs, lhs + ' ' + op + ' ' + rhs) + ')'),
+  set      trans:lhs trans:rhs :l                       -> ('(' + lhs + '=' + emitValue(l, lhs, rhs) + ')'),
+  mset     trans:lhs :op trans:rhs :l                   -> ('(' + lhs + '=' + emitValue(l, lhs, lhs + ' ' + op + ' ' + rhs) + ')'),
   binop    :op trans:x trans:y                          -> ('(' + x + ' ' + op + ' ' + y + ')'),
   preop    :op trans:x                                  -> (op + x),
   postop   :op trans:x                                  -> (x + op),
-  return   trans:x :p                                   -> ('return ' + emitValue(p, 'return', x)),
+  return   trans:x :l                                   -> ('return ' + emitValue(l, 'return', x)),
   with     trans:x curlyTrans:s                         -> ('with(' + x + ')' + s),
   if       trans:cond curlyTrans:t curlyTrans:e         -> ('if(' + cond + ')' + t + 'else' + e),
   condExpr trans:cond trans:t trans:e                   -> ('(' + cond + '?' + t + ':' + e + ')'),
@@ -211,10 +211,12 @@ let BSJSTranslator = ometa {
   beginVars :decl trans:x end                           -> (decl + ' ' + x),
   beginVars :decl (trans:x)*:xs                         -> (decl + ' ' + xs.join(',')),
   func     :args curlyTrans:body                        -> ('(function (' + args.join(',') + ')' + body + ')'),
-  call     trans:fn trans*:args                         -> (fn + '(' + args.join(',') + ')'),
+  call     trans:fn trans*:args :l                      -> (fn == 'log' ?
+                                                            (fn + '(' + emitValue(l, fn, args.join(',')) + ')') :
+                                                            (fn + '(' + args.join(',') + ')')),
   send     :msg trans:recv trans*:args                  -> (recv + '.' + msg + '(' + args.join(',') + ')'),
   new      trans:x                                      -> ('new ' + x),
-  assignVar :name trans:val :p                          -> (name + '=' + emitValue(p, name, val)),
+  assignVar :name trans:val :l                          -> (name + '=' + emitValue(l, name, val)),
   noAssignVar :name                                     -> name,
   throw    trans:x                                      -> ('throw ' + x),
   try      curlyTrans:x :name curlyTrans:c curlyTrans:f -> ('try ' + x + 'catch(' + name + ')' + c + 'finally' + f),
