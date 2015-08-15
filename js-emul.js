@@ -82,6 +82,12 @@ let startHelper = function(callback) {
 
 /**/
 
+Gtk.init(null, null);
+
+let errorLabel = new Gtk.Label({ visible: true });
+
+/**/
+
 let translate = function(input) {
   let structure = jsEmul.BSJSParser.matchAllStructure(input, 'topLevel', undefined);
   let code = jsEmul.BSJSTranslator.match(structure.value, 'trans', undefined);
@@ -100,7 +106,13 @@ let eventsToString = function(input, events) {
   let lines = [], currentLines = [], maxLine = -1, lastLine = -1;
 
   let eventToString = function(event) {
-    return event.name + ' = ' + event.value;
+    switch (event.type) {
+    case 'event':
+      return event.name + ' = ' + event.value;
+    case 'error':
+      return 'Error: ' + event.error.message;
+    }
+    return 'FIXME: Unknown event type!'
   };
 
   let spaces = function(nb) {
@@ -132,8 +144,13 @@ let eventsToString = function(input, events) {
     return ret;
   };
 
+  errorLabel.label = '';
   for (let i = 0; i < events.length; i++) {
     let ev = events[i];
+    if (ev.type == 'error') {
+      errorLabel.label = eventToString(ev)
+      continue;
+    }
     let line = indexToPosition(input, Math.round((ev.start + ev.stop) / 2));
     if (line <= lastLine)
       lines = copyArray(currentLines, maxLine + 1);
@@ -162,8 +179,6 @@ let toTraces = function(input) {
 };
 
 /**/
-
-Gtk.init(null, null);
 
 let createView = function(args) {
   let view = new GtkSource.View();
@@ -219,7 +234,13 @@ v2.buffer.connect('notify::cursor-position', genMoveLineCursorFunc(v2.buffer, v1
 
 let win = new Gtk.Window();
 win.connect('destroy', Gtk.main_quit);
-win.add(paned);
+
+let box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, visible: true });
+win.add(box);
+
+box.pack_start(paned, true, true, 0);
+box.pack_start(errorLabel, false, false, 0);
+
 win.show();
 
 const WIDTH = 800

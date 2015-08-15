@@ -26,7 +26,7 @@ let runFunction = function(func) {
       throw error;
     }
     if (typeof value !== 'function') {
-      sendEvent({ start: start, stop: stop, name: name, value: JSON.stringify(value) });
+      sendEvent({ type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
     }
     return value;
   };
@@ -37,8 +37,12 @@ let runFunction = function(func) {
 let handleCommand = function(cmd) {
   try {
     runFunction(toFunction(cmd.code));
-  } catch (error) {
-    log(error);
+  } catch (e) {
+    let error = {};
+    for (let i in e)
+      error[i] = e[i];
+    error.message = e.message;
+    sendEvent({ type: 'error', error: error });
   }
 };
 
