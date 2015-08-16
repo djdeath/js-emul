@@ -14,12 +14,12 @@ let sendEvent = function(event) {
 };
 
 let toFunction = function(code) {
-  return eval('(function () {return function($e) {' + code + '};})()');
+  return eval('(function () {return function($v, $e) {' + code + '};})()');
 };
 
 let runFunction = function(func) {
   let evs = [];
-  let ev = function(start, stop, name, value) {
+  let v = function(start, stop, name, value) {
     if (evs.length > 1000) {
       let error = new Error('Infinite loop');
       error.evs = evs;
@@ -30,7 +30,9 @@ let runFunction = function(func) {
     }
     return value;
   };
-  func(ev);
+  let e = function(start, stop, name) {
+  };
+  func(v, e);
   return evs;
 };
 
@@ -53,11 +55,11 @@ gotLine = function(stream, res) {
     readLine();
     handleCommand(JSON.parse(data));
   } else
-    Mainloop.quit('ui-helper');
+    Mainloop.quit('js-emul-helper');
 };
 readLine = function() {
   inputDataStream.read_line_async(0, null, gotLine.bind(this));
 };
 
 readLine();
-Mainloop.run('ui-helper');
+Mainloop.run('js-emul-helper');

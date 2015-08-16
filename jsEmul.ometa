@@ -66,15 +66,15 @@ let BSJSParser = ometa(BaseStrParser) {
                | unary,
   unary        = "-"      postfix:p                                                  -> [#unop,  "-",        p]
                | "+"      postfix:p                                                  -> [#unop,  "+",        p]
-               | "++"     postfix:p                                                  -> [#preop, "++",       p]
-               | "--"     postfix:p                                                  -> [#preop, "--",       p]
+               | "++"     postfix:p                                                  -> [#preop, "++",       p, @location]
+               | "--"     postfix:p                                                  -> [#preop, "--",       p, @location]
                | "!"      unary:p                                                    -> [#unop,  "!",        p]
                | "void"   unary:p                                                    -> [#unop,  "void",     p]
                | "delete" unary:p                                                    -> [#unop,  "delete",   p]
                | "typeof" unary:p                                                    -> [#unop,  "typeof",   p]
                | postfix,
-  postfix      = primExpr:p ( spacesNoNl "++"                                        -> [#postop, "++", p]
-                            | spacesNoNl "--"                                        -> [#postop, "--", p]
+  postfix      = primExpr:p ( spacesNoNl "++"                                        -> [#postop, "++", p, @location]
+                            | spacesNoNl "--"                                        -> [#postop, "--", p, @location]
                             | empty                                                  -> p
                             ),
   primExpr     = primExpr:p ( "[" expr:i "]"                                         -> [#getp, i, p]
@@ -118,8 +118,8 @@ let BSJSParser = ometa(BaseStrParser) {
                | varBinder:decl listOf(#varBinding, ','):bs sc                       -> [#beginVars, decl].concat(bs)
                | "if" "(" expr:c ")" stmt:t ( "else" stmt
                                             | empty -> [#get, 'undefined'] ):f       -> [#if, c, t, f]
-               | "while" "(" expr:c ")" stmt:s                                       -> [#while,   c, s]
-               | "do" stmt:s "while" "(" expr:c ")" sc                               -> [#doWhile, s, c]
+               | "while" "(" expr:c ")" stmt:s                                       -> [#while,   c, s, @location]
+               | "do" stmt:s "while" "(" expr:c ")" sc                               -> [#doWhile, s, c, @location]
                | "for" "(" ( varBinder:decl listOf(#varBinding, ','):bs              -> [#beginVars, decl].concat(bs)
                            | expr
                            | empty -> [#get, 'undefined'] ):i
@@ -127,11 +127,11 @@ let BSJSParser = ometa(BaseStrParser) {
                            | empty -> [#get, 'true']      ):c
                        ";" ( expr
                            | empty -> [#get, 'undefined'] ):u
-                       ")" stmt:s                                                    -> [#for, i, c, u, s]
+                       ")" stmt:s                                                    -> [#for, i, c, u, s, @location]
                | "for" "(" ( varBinder:decl "name":n -> [#beginVars, decl, [#noAssignVar, n]]
                            | expr                                             ):v
                       "in" expr:e
-                       ")" stmt:s                                                    -> [#forIn, v, e, s]
+                       ")" stmt:s                                                    -> [#forIn, v, e, s, @location]
                | "switch" "(" expr:e ")" "{"
                    ( "case" expr:c ":" srcElems:cs -> [#case, c, [#begin, cs]]
                    | "default"     ":" srcElems:cs -> [#default, [#begin, cs]] )*:cs
@@ -163,8 +163,14 @@ BSJSParser._isKeyword = function(k) { return this.keywords.hasOwnProperty(k); };
 
 
 let emitValue = function(location, variable, expr) {
-  return ['$e(', location.start, ',', location.stop, ',"', variable, '",', expr, ')'].join('');
-}
+  return ['$v(', location.start, ',', location.stop, ',"', variable, '",', expr, ')'].join('');
+};
+let emitValueBefore = function(expr, opExpr, loc) {
+  return ['(function(){', opExpr, ';var $r=', expr, ';return ', emitValue(loc, expr, '$r'), ';})()'].join('');
+};
+let emitEvent = function(location, name) {
+  return ['$e(', location.start, ',', location.stop, ',"', name, '")'].join('');
+};
 
 let BSJSTranslator = ometa {
   trans      = [:t apply(t):ans]     -> ans,
@@ -186,17 +192,17 @@ let BSJSTranslator = ometa {
   set      trans:lhs trans:rhs :l                       -> ('(' + lhs + '=' + emitValue(l, lhs, rhs) + ')'),
   mset     trans:lhs :op trans:rhs :l                   -> ('(' + lhs + '=' + emitValue(l, lhs, lhs + ' ' + op + ' ' + rhs) + ')'),
   binop    :op trans:x trans:y                          -> ('(' + x + ' ' + op + ' ' + y + ')'),
-  preop    :op trans:x                                  -> (op + x),
-  postop   :op trans:x                                  -> (x + op),
+  preop    :op trans:x :l                               -> (op + x + ',' + emitValue(l, x, x)),
+  postop   :op trans:x :l                               -> emitValueBefore(x, x + op, l),
   return   trans:x :l                                   -> ('return ' + emitValue(l, 'return', x)),
   with     trans:x curlyTrans:s                         -> ('with(' + x + ')' + s),
   if       trans:cond curlyTrans:t curlyTrans:e         -> ('if(' + cond + ')' + t + 'else' + e),
   condExpr trans:cond trans:t trans:e                   -> ('(' + cond + '?' + t + ':' + e + ')'),
-  while    trans:cond curlyTrans:body                   -> ('while(' + cond + ')' + body),
-  doWhile  curlyTrans:body trans:cond                   -> ('do' + body + 'while(' + cond + ')'),
+  while    trans:cond curlyTrans:body :l                -> ('while(' + cond + ')' + body),
+  doWhile  curlyTrans:body trans:cond :l                -> ('do' + body + 'while(' + cond + ')'),
   for      trans:init trans:cond trans:upd
-           curlyTrans:body                              -> ('for(' + init + ';' + cond + ';' + upd + ')' + body),
-  forIn    trans:x trans:arr curlyTrans:body            -> ('for(' + x + ' in ' + arr + ')' + body),
+           curlyTrans:body :l                           -> ('for(' + init + ';' + cond + ';' + upd + ')' + body),
+  forIn    trans:x trans:arr curlyTrans:body :l         -> ('for(' + x + ' in ' + arr + ')' + body),
   beginTop (trans:x
               ( (?(x[x.length - 1] == '}') | end) -> x
               | empty                             -> (x + ';')

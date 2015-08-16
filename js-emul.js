@@ -13,36 +13,12 @@ if (ARGV.length < 1)
 /*
   TODO: make this a lib...
  */
+let startHelper = function(eventCallback, errorCallback) {
+  const _DEBUG_IO = false;
+  let _debugIo = function(pre, data) {
+    if (_DEBUG_IO) log(pre + data);
+  };
 
-const _DEBUG_IO = false;
-let _debugIo = function(pre, data) {
-  if (_DEBUG_IO) log(pre + data);
-};
-
-let _readLine = function(stream, process) {
-  stream.read_line_async(0, null, function(stream, res) {
-    try {
-      let [data, length] = stream.read_line_finish(res);
-      if (length > 0) {
-        _readLine(stream, process);
-        process(data);
-      } else
-        log('Server gone');
-    } catch (error) {
-      log('Server connection error : ' + error);
-    }
-  });
-};
-
-let _outputStream = null;
-
-let sendCommand = function(cmd) {
-  let data = JSON.stringify(cmd);
-  _debugIo('OUT: ', data);
-  _outputStream.write_all(data + '\n', null);
-};
-
-let startHelper = function(callback) {
   let [success, pid, inputFd, outputFd, errorFd] =
       GLib.spawn_async_with_pipes(null,
                                   ['./js-emul-helper'],
@@ -53,8 +29,27 @@ let startHelper = function(callback) {
                                                close_fd: true, });
   let _errorStream = new Gio.UnixInputStream({ fd: errorFd,
                                                close_fd: true, });
-  _outputStream = new Gio.UnixOutputStream({ fd: inputFd,
-                                             close_fd: true, });
+  let _outputStream = new Gio.UnixOutputStream({ fd: inputFd,
+                                                 close_fd: true, });
+  let _readLine = function(stream, process) {
+    stream.read_line_async(0, null, function(stream, res) {
+      try {
+        let [data, length] = stream.read_line_finish(res);
+        if (length > 0) {
+          _readLine(stream, process);
+          process(data);
+        } else {
+          log('Server gone');
+          _inputStream.close(null);
+          _outputStream.close(null);
+          _errorStream.close(null);
+          errorCallback();
+        }
+      } catch (error) {
+        log('Server connection error : ' + error);
+      }
+    });
+  };
 
   _readLine(Gio.DataInputStream.new(_inputStream), function(data) {
     try {
@@ -65,10 +60,10 @@ let startHelper = function(callback) {
         let error = new Error();
         for (let i in cmd.error)
           error[i] = cmd.error[i];
-        callback(error);
+        eventCallback(error);
       }
       else
-        callback(null, cmd);
+        eventCallback(null, cmd);
     } catch (error) {
       log('Client: ' + error);
       log(error.stack);
@@ -78,6 +73,13 @@ let startHelper = function(callback) {
     log('Server: ' + data);
   }.bind(this));
 
+  let sendCommand = function(cmd) {
+    let data = JSON.stringify(cmd);
+    _debugIo('OUT: ', data);
+    _outputStream.write_all(data + '\n', null);
+  };
+
+  return sendCommand;
 };
 
 /**/
@@ -183,6 +185,7 @@ let toTraces = function(input) {
 let createView = function(args) {
   let view = new GtkSource.View();
   view.monospace = args.monospace;
+  view.show_line_numbers = args.show_line_numbers;
   view.visible = true;
   if (args.language) {
     let lang_manager = GtkSource.LanguageManager.get_default();
@@ -197,10 +200,10 @@ let createView = function(args) {
 };
 
 let paned = new Gtk.Paned();
-let [v1, s1] = createView({ language: 'js', monospace: true });
+let [v1, s1] = createView({ language: 'js', monospace: true, show_line_numbers: true });
 let b1 = v1.buffer;
 paned.add1(s1);
-let [v2, s2] = createView({ language: 'js', monospace: true });
+let [v2, s2] = createView({ language: 'js', monospace: true, show_line_numbers: false });
 let b2 = v2.buffer;
 paned.add2(s2);
 paned.show();
@@ -273,18 +276,23 @@ let addEvent = function(error, cmd) {
   _rerenderTimeoutId = Mainloop.timeout_add(50, _rerenderEvents);
 };
 
-startHelper(addEvent)
+let sendCommand = null;
+let restartHelper = function() {
+  sendCommand = startHelper(addEvent, restartHelper);
+};
+
+restartHelper();
 
 v1.buffer.connect('changed', function() {
+  let input = b1.get_text(b1.get_start_iter(),
+                          b1.get_end_iter(),
+                          false);
   try {
-    let input = b1.get_text(b1.get_start_iter(),
-                            b1.get_end_iter(),
-                            false);
     _events = [];
     sendCommand({ code: translate(input) });
     Utils.delayedSaveFile(ARGV[0], input);
   } catch (e) {
-    log('Translation error: ' + e);
+    errorLabel.label = 'Translation error: ' + e + ' line: ' + indexToPosition(input, e.idx);
   }
 });
 
