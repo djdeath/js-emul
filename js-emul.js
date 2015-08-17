@@ -25,12 +25,25 @@ let startHelper = function(eventCallback, errorCallback) {
                                   GLib.get_environ(),
                                   GLib.SpawnFlags.DEFAULT,
                                   null);
+  log('input: ' + inputFd);
+  log('output: ' + outputFd);
+  log('error: ' + errorFd);
   let _inputStream = new Gio.UnixInputStream({ fd: outputFd,
                                                close_fd: true, });
   let _errorStream = new Gio.UnixInputStream({ fd: errorFd,
                                                close_fd: true, });
   let _outputStream = new Gio.UnixOutputStream({ fd: inputFd,
                                                  close_fd: true, });
+
+  let _shutdownServer = function() {
+    try {
+      _inputStream.close(null);
+      _outputStream.close(null);
+      _errorStream.close(null);
+    } catch (e) {}
+    errorCallback();
+  };
+
   let _readLine = function(stream, process) {
     stream.read_line_async(0, null, function(stream, res) {
       try {
@@ -39,14 +52,14 @@ let startHelper = function(eventCallback, errorCallback) {
           _readLine(stream, process);
           process(data);
         } else {
-          log('Server gone');
-          _inputStream.close(null);
-          _outputStream.close(null);
-          _errorStream.close(null);
-          errorCallback();
+          log('Server read error : ' + stream.base_stream.fd);
+          _readLine(stream, process);
+
+          //_shutdownServer();
         }
       } catch (error) {
         log('Server connection error : ' + error);
+        _shutdownServer();
       }
     });
   };
@@ -111,6 +124,7 @@ let eventsToString = function(input, events) {
     switch (event.type) {
     case 'event':
       return event.name + ' = ' + event.value;
+    case 'runtime-error':
     case 'error':
       return 'Error: ' + event.error.message;
     }

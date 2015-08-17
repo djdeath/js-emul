@@ -1,0 +1,69 @@
+let emitValue = function(location, variable, expr) {
+  return ['$v(', location.start, ',', location.stop, ',"', variable, '",', expr, ')'].join('');
+};
+let emitValueBefore = function(expr, opExpr, loc) {
+  return ['(function(){', opExpr, ';var $r=', expr, ';return ', emitValue(loc, expr, '$r'), ';})()'].join('');
+};
+
+let BSJSTranslator = ometa {
+  trans      = [:t apply(t):ans]     -> ans,
+  curlyTrans = [#begin curlyTrans:r] -> r
+             | [#begin trans*:rs]    -> ('{' + rs.join(';') + ';}')
+             | trans:r               -> ('{' + r + ';}'),
+
+  this                                                  -> 'this',
+  break                                                 -> 'break',
+  continue                                              -> 'continue',
+  number   :n                                           -> ('(' + n + ')'),
+  string   :s                                           -> s.toProgramString(),
+  name     :s                                           -> s,
+  regExpr  :x                                           -> x,
+  arr      trans*:xs                                    -> ('[' + xs.join(',') + ']'),
+  unop     :op trans:x                                  -> ('(' + op + ' ' + x + ')'),
+  getp     trans:fd trans:x                             -> (x + '[' + fd + ']'),
+  get      :x                                           -> x,
+  set      trans:lhs trans:rhs :l                       -> ('(' + lhs + '=' + emitValue(l, lhs, rhs) + ')'),
+  mset     trans:lhs :op trans:rhs :l                   -> ('(' + lhs + '=' + emitValue(l, lhs, lhs + ' ' + op + ' ' + rhs) + ')'),
+  binop    :op trans:x trans:y                          -> ('(' + x + ' ' + op + ' ' + y + ')'),
+  preop    :op trans:x :l                               -> (op + x + ',' + emitValue(l, x, x)),
+  postop   :op trans:x :l                               -> emitValueBefore(x, x + op, l),
+  return   trans:x :l                                   -> ('return ' + emitValue(l, 'return', x)),
+  with     trans:x curlyTrans:s                         -> ('with(' + x + ')' + s),
+  if       trans:cond curlyTrans:t curlyTrans:e         -> ('if(' + cond + ')' + t + 'else' + e),
+  condExpr trans:cond trans:t trans:e                   -> ('(' + cond + '?' + t + ':' + e + ')'),
+  while    trans:cond curlyTrans:body                   -> ('while(' + cond + ')' + body),
+  doWhile  curlyTrans:body trans:cond                   -> ('do' + body + 'while(' + cond + ')'),
+  for      trans:init trans:cond trans:upd
+           curlyTrans:body :l                           -> ('for(' + init + ';' + cond + ';' + emitEvent(l, 'for') + ',' + upd + ')' + body),
+  forIn    trans:x trans:arr curlyTrans:body            -> ('for(' + x + ' in ' + arr + ')' + body),
+  beginTop (trans:x
+              ( (?(x[x.length - 1] == '}') | end) -> x
+              | empty                             -> (x + ';')
+              )
+           )*:xs                                        -> xs.join(''),
+  begin    trans:x end                                  -> x,
+  begin    (trans:x
+              ( (?(x[x.length - 1] == '}') | end) -> x
+              | empty                             -> (x + ';')
+              )
+           )*:xs                                        -> ('{' + xs.join('') + '}'),
+  beginVars :decl trans:x end                           -> (decl + ' ' + x),
+  beginVars :decl (trans:x)*:xs                         -> (decl + ' ' + xs.join(',')),
+  func     :args curlyTrans:body                        -> ('(function (' + args.join(',') + ')' + body + ')'),
+  call     trans:fn trans*:args :l                      -> (fn == 'log' ?
+                                                            (fn + '(' + emitValue(l, fn, args.join(',')) + ')') :
+                                                            (fn + '(' + args.join(',') + ')')),
+  send     :msg trans:recv trans*:args                  -> (recv + '.' + msg + '(' + args.join(',') + ')'),
+  new      trans:x                                      -> ('new ' + x),
+  assignVar :name trans:val :l                          -> (name + '=' + emitValue(l, name, val)),
+  noAssignVar :name                                     -> name,
+  throw    trans:x                                      -> ('throw ' + x),
+  try      curlyTrans:x :name curlyTrans:c curlyTrans:f -> ('try ' + x + 'catch(' + name + ')' + c + 'finally' + f),
+  json     trans*:props                                 -> ('({' + props.join(',') + '})'),
+  binding  :name trans:val                              -> (name.toProgramString() + ': ' + val),
+  switch   trans:x trans*:cases                         -> ('switch(' + x + '){' + cases.join(';') + '}'),
+  case     trans:x trans:y                              -> ('case ' + x + ': '+ y),
+  default          trans:y                              -> ('default: ' + y),
+
+  emitEvent :name :l                                    -> ('$e(' + l.start + ',' + l.stop + ',"' + name + '")'),
+};

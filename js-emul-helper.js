@@ -1,7 +1,7 @@
 const Gio = imports.gi.Gio;
 const Mainloop = imports.mainloop;
 
-log('server starting!');
+log('starting!');
 
 let inputStream = new Gio.UnixInputStream({ fd: 0,
                                             close_fd: false, });
@@ -18,44 +18,54 @@ let toFunction = function(code) {
 };
 
 let runFunction = function(func) {
-  let evs = [];
   let v = function(start, stop, name, value) {
-    if (evs.length > 1000) {
-      let error = new Error('Infinite loop');
-      error.evs = evs;
-      throw error;
-    }
     if (typeof value !== 'function') {
       sendEvent({ type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
     }
     return value;
   };
+  let events = {};
   let e = function(start, stop, name) {
+    let id = name + '-' + start + '-' + stop;
+    if (events[id] !== undefined)
+      events[id]++
+    else
+      events[id] = 0;
+    if (events[id] > 1000) {
+      sendEvent({ type: 'runtime-error', start: start, stop: stop, error: { message: 'Infinite loop' }});
+      let err = new Error('Infinite loop');
+      err.runtime = true;
+      throw err;
+    }
   };
   func(v, e);
-  return evs;
 };
 
 let handleCommand = function(cmd) {
   try {
     runFunction(toFunction(cmd.code));
   } catch (e) {
-    let error = {};
-    for (let i in e)
-      error[i] = e[i];
-    error.message = e.message;
-    sendEvent({ type: 'error', error: error });
+    log('function error: ' + e);
+    if (!e.runtime) {
+      sendEvent({ type: 'error', error: { message: e.message }});
+    }
   }
 };
 
 let readLine = null, gotLine = null;
 gotLine = function(stream, res) {
-  let [data, length] = inputDataStream.read_line_finish(res);
-  if (length > 0) {
-    readLine();
-    handleCommand(JSON.parse(data));
-  } else
+  try {
+    let [data, length] = inputDataStream.read_line_finish(res);
+    if (length > 0) {
+      readLine();
+      handleCommand(JSON.parse(data));
+    } else {
+      throw new Error('Error reading input stream');
+    }
+  } catch (e) {
+    log('quitting: ' + e.message);
     Mainloop.quit('js-emul-helper');
+  }
 };
 readLine = function() {
   inputDataStream.read_line_async(0, null, gotLine.bind(this));
