@@ -5,8 +5,12 @@ const Mainloop = imports.mainloop;
 //
 let loadFile = function(path) {
   let file = Gio.File.new_for_path(path);
-  let [, source] = file.load_contents(null);
-  return '' + source;
+  try {
+    let [, source] = file.load_contents(null);
+    return '' + source;
+  } catch (e) {
+    return '';
+  }
 };
 
 let _filenames = {};
