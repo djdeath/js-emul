@@ -1,5 +1,5 @@
 let emitValue = function(location, variable, expr) {
-  return ['$v(', location.start, ',', location.stop, ',"', variable, '",', expr, ')'].join('');
+  return ['$v(', location.start, ',', location.stop, ',', variable.toProgramString(), ',', expr, ')'].join('');
 };
 let emitValueBefore = function(expr, opExpr, loc) {
   return ['(function(){', opExpr, ';var $r=', expr, ';return ', emitValue(loc, expr, '$r'), ';})()'].join('');
