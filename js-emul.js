@@ -278,6 +278,12 @@ let _rerenderEvents = function() {
   return false;
 };
 
+let renderEvents = function() {
+  if (_rerenderTimeoutId != 0)
+    Mainloop.source_remove(_rerenderTimeoutId);
+  _rerenderTimeoutId = Mainloop.timeout_add(50, _rerenderEvents);
+};
+
 let addEvent = function(error, cmd) {
   if (error) {
     log('Server error: ' + error);
@@ -285,9 +291,7 @@ let addEvent = function(error, cmd) {
   }
   _events.push(cmd.event);
 
-  if (_rerenderTimeoutId != 0)
-    Mainloop.source_remove(_rerenderTimeoutId);
-  _rerenderTimeoutId = Mainloop.timeout_add(50, _rerenderEvents);
+  renderEvents();
 };
 
 let sendCommand = null;
@@ -303,7 +307,9 @@ v1.buffer.connect('changed', function() {
                           false);
   try {
     _events = [];
-    sendCommand({ code: translate(input) });
+    renderEvents();
+    let translatedCode = translate(input);
+    sendCommand({ code: translatedCode });
     Utils.delayedSaveFile(ARGV[0], input);
   } catch (e) {
     errorLabel.label = 'Translation error: ' + e + ' line: ' + indexToPosition(input, e.idx);
