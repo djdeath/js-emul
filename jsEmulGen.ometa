@@ -34,7 +34,7 @@ let BSJSTranslator = ometa {
   while    trans:cond curlyTrans:body                   -> ('while(' + cond + ')' + body),
   doWhile  curlyTrans:body trans:cond                   -> ('do' + body + 'while(' + cond + ')'),
   for      trans:init trans:cond trans:upd
-           curlyTrans:body :l                           -> ('for(' + init + ';' + cond + ';' + emitEvent(l, 'for') + ',' + upd + ')' + body),
+           curlyTrans:body                              -> ('for(' + init + ';' + cond + ';' + upd + ')' + body),
   forIn    trans:x trans:arr curlyTrans:body            -> ('for(' + x + ' in ' + arr + ')' + body),
   beginTop (trans:x
               ( (?(x[x.length - 1] == '}') | end) -> x
