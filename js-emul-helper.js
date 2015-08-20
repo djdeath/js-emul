@@ -9,18 +9,18 @@ let outpuStream = new Gio.UnixOutputStream({ fd: 1,
                                              close_fd: false, });
 let inputDataStream = Gio.DataInputStream.new(inputStream);
 
-let sendEvent = function(event) {
-  outpuStream.write_all(JSON.stringify({event: event}) + '\n', null);
+let sendEvent = function(id, event) {
+  outpuStream.write_all(JSON.stringify({id: id, event: event}) + '\n', null);
 };
 
 let toFunction = function(code) {
   return eval('(function () {return function($v, $e) {' + code + '};})()');
 };
 
-let runFunction = function(func) {
+let runFunction = function(id, func) {
   let v = function(start, stop, name, value) {
     if (typeof value !== 'function') {
-      sendEvent({ type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
+      sendEvent(id, { type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
     }
     return value;
   };
@@ -32,7 +32,7 @@ let runFunction = function(func) {
     else
       events[id] = 0;
     if (events[id] > 1000) {
-      sendEvent({ type: 'runtime-error', start: start, stop: stop, error: { message: 'Infinite loop' }});
+      sendEvent(id, { type: 'runtime-error', start: start, stop: stop, error: { message: 'Infinite loop' }});
       let err = new Error('Infinite loop');
       err.runtime = true;
       throw err;
@@ -43,11 +43,11 @@ let runFunction = function(func) {
 
 let handleCommand = function(cmd) {
   try {
-    runFunction(toFunction(cmd.code));
+    runFunction(cmd.id, toFunction(cmd.code));
   } catch (e) {
     log('function error: ' + e);
     if (!e.runtime) {
-      sendEvent({ type: 'error', error: { message: e.message }});
+      sendEvent(cmd.id, { type: 'error', error: { message: e.message }});
     }
   }
 };

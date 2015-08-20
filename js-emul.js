@@ -167,10 +167,14 @@ let eventsToString = function(input, events) {
       errorLabel.label = eventToString(ev)
       continue;
     }
+
     let line = indexToPosition(input, Math.round((ev.start + ev.stop) / 2));
     if (line <= lastLine)
       lines = copyArray(currentLines, maxLine + 1);
-    currentLines[line] = updateEventLine(line, eventToString(ev));
+    if (ev.type == 'runtime-error')
+      currentLines[line] = eventToString(ev);
+    else
+      currentLines[line] = updateEventLine(line, eventToString(ev));
     lastLine = line;
     maxLine = Math.max(line, maxLine);
   }
@@ -275,6 +279,7 @@ paned.position = WIDTH / 2;
 
 /**/
 
+let _codeId = 0;
 let _events = [];
 let _rerenderTimeoutId = 0;
 let _rerenderEvents = function() {
@@ -298,8 +303,11 @@ let addEvent = function(error, cmd) {
     log('Server error: ' + error);
     return;
   }
-  _events.push(cmd.event);
+  // Discard events from a previous run.
+  if (cmd.id != _codeId)
+    return;
 
+  _events.push(cmd.event);
   renderEvents();
 };
 
@@ -319,7 +327,7 @@ v1.buffer.connect('changed', function() {
     renderEvents();
     let translatedCode = translate(input);
     removeHighlights(b1, 'error');
-    sendCommand({ code: translatedCode });
+    sendCommand({ code: translatedCode, id: ++_codeId });
     Utils.delayedSaveFile(ARGV[0], input);
   } catch (e) {
     log(e);
