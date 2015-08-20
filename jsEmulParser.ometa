@@ -7,6 +7,7 @@ let BSJSParser = ometa(BaseStrParser) {
   isKeyword :x = ?BSJSParser._isKeyword(x),
   name         = iName:n ~isKeyword(n)                                               -> [#name, n],
   keyword      = iName:k isKeyword(k)                                                -> [k, k],
+  anyname      = spaces iName:n                                                      -> n,
   hexDigit     = char:x {this.hexDigits.indexOf(x.toLowerCase())}:v ?(v >= 0)        -> v,
   hexLit       = hexLit:n hexDigit:d                                                 -> (n * 16 + d)
                | hexDigit,
@@ -78,8 +79,8 @@ let BSJSParser = ometa(BaseStrParser) {
                             | empty                                                  -> p
                             ),
   primExpr     = primExpr:p ( "[" expr:i "]"                                         -> [#getp, i, p]
-                            | "." "name":m "(" listOf(#expr, ','):as ")"             -> [#send, m, p].concat(as)
-                            | "." "name":f                                           -> [#getp, [#string, f], p]
+                            | "." anyname:m "(" listOf(#expr, ','):as ")"            -> [#send, m, p].concat(as)
+                            | "." anyname:f                                          -> [#getp, [#string, f], p]
                             | "(" listOf(#expr, ','):as ")"                          -> [#call, p].concat(as).concat(@location)
                             )
                | primExprHd,
