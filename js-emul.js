@@ -224,16 +224,33 @@ paned.show();
 
 let addHighlightTag = function(buffer) {
   let tag_table = buffer.get_tag_table();
-  let tag = new Gtk.TextTag({ name: 'highlight',
-                              background: '#fde5f6' });
-  tag_table.add(tag);
+
+  let addTag = function(name, color) {
+    let tag = new Gtk.TextTag({ name: name,
+                                background: color });
+    tag_table.add(tag);
+  };
+
+  addTag('highlight', '#d9edf7');
+  addTag('error', '#f2dede');
 };
 addHighlightTag(v1.buffer);
 addHighlightTag(v2.buffer);
 
-let highlightLine = function(buffer, line) {
-  buffer.remove_tag_by_name('highlight', buffer.get_start_iter(), buffer.get_end_iter());
-  buffer.apply_tag_by_name('highlight',
+let removeHighlights = function(buffer, name) {
+  let tag = buffer.get_tag_table().lookup(name);
+  if (tag)
+    buffer.remove_tag(tag, buffer.get_start_iter(), buffer.get_end_iter());
+};
+
+let highlightTillEnd = function(buffer, name, offset) {
+  buffer.apply_tag_by_name(name,
+                           buffer.get_iter_at_offset(offset),
+                           buffer.get_end_iter());
+};
+
+let highlightLine = function(buffer, name, line) {
+  buffer.apply_tag_by_name(name,
                            buffer.get_iter_at_line(line),
                            buffer.get_iter_at_line(line + 1));
 };
@@ -241,8 +258,10 @@ let highlightLine = function(buffer, line) {
 let genMoveLineCursorFunc = function(from, to) {
   return function() {
     let fromIter = from.get_iter_at_offset(from.cursor_position);
-    highlightLine(from, fromIter.get_line());
-    highlightLine(to, fromIter.get_line());
+    removeHighlights(from, 'highlight');
+    removeHighlights(to, 'highlight');
+    highlightLine(from, 'highlight', fromIter.get_line());
+    highlightLine(to, 'highlight', fromIter.get_line());
   };
 };
 
@@ -309,9 +328,13 @@ v1.buffer.connect('changed', function() {
     _events = [];
     renderEvents();
     let translatedCode = translate(input);
+    removeHighlights(b1, 'error');
     sendCommand({ code: translatedCode });
     Utils.delayedSaveFile(ARGV[0], input);
   } catch (e) {
+    log(e);
+    if (e.idx)
+      highlightTillEnd(b1, 'error', e.idx);
     errorLabel.label = 'Translation error: ' + e + ' line: ' + indexToPosition(input, e.idx);
   }
 });
