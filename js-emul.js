@@ -40,6 +40,7 @@ let startHelper = function(eventCallback, errorCallback) {
       _inputStream.close(null);
       _outputStream.close(null);
       _errorStream.close(null);
+      GLib.spawn_close_pid(pid);
     } catch (e) {}
     errorCallback();
   };
@@ -53,9 +54,8 @@ let startHelper = function(eventCallback, errorCallback) {
           process(data);
         } else {
           log('Server read error : ' + stream.base_stream.fd);
-          _readLine(stream, process);
-
-          //_shutdownServer();
+          //_readLine(stream, process);
+          _shutdownServer();
         }
       } catch (error) {
         log('Server connection error : ' + error);
@@ -182,16 +182,6 @@ let eventsToString = function(input, events) {
     s += '\n';
   }
   return s;
-};
-
-let toTraces = function(input) {
-  try {
-    return eventsToString(input, runFunction(toFunction(translate(input))));
-  } catch (e) {
-    if (e.evs)
-      return eventsToString(input, e.evs);
-    throw e;
-  }
 };
 
 /**/
