@@ -10,6 +10,8 @@ const Utils = imports.Utils;
 if (ARGV.length < 1)
   throw new Error("Need at least one argument");
 
+let lang_manager = GtkSource.LanguageManager.get_default();
+
 /*
   TODO: make this a lib...
  */
@@ -99,7 +101,12 @@ let startHelper = function(eventCallback, errorCallback) {
 
 Gtk.init(null, null);
 
-let errorLabel = new Gtk.Label({ visible: true });
+let builder = new Gtk.Builder();
+builder.add_from_file('js-emul-ui.ui');
+
+let $ = function(id) {
+  return builder.get_object(id);
+};
 
 /**/
 
@@ -109,7 +116,7 @@ let translate = function(input) {
   return code;
 };
 
-let indexToPosition = function(source, idx) {
+let indexToLine = function(source, idx) {
   let lineNum = 0;
   for (let i = 0; i < idx; i++)
     if (source.charAt(i) == '\n')
@@ -160,15 +167,15 @@ let eventsToString = function(input, events) {
     return ret;
   };
 
-  errorLabel.label = '';
-  for (let i = 0; i < events.length; i++) {
+  $('error-label').label = '';
+  for (let i = 0; i < events.length ; i++) {
     let ev = events[i];
     if (ev.type == 'error') {
-      errorLabel.label = eventToString(ev)
+      $('error-label').label = eventToString(ev)
       continue;
     }
 
-    let line = indexToPosition(input, Math.round((ev.start + ev.stop) / 2));
+    let line = indexToLine(input, Math.round((ev.start + ev.stop) / 2));
     if (line <= lastLine)
       lines = copyArray(currentLines, maxLine + 1);
     if (ev.type == 'runtime-error')
@@ -190,31 +197,17 @@ let eventsToString = function(input, events) {
 
 /**/
 
-let createView = function(args) {
-  let view = new GtkSource.View();
-  view.monospace = args.monospace;
-  view.show_line_numbers = args.show_line_numbers;
-  view.visible = true;
-  if (args.language) {
-    let lang_manager = GtkSource.LanguageManager.get_default();
-    view.buffer.set_language(lang_manager.get_language(args.language));
-  }
-
-  let scroll = new Gtk.ScrolledWindow();
-  scroll.add(view);
-  scroll.visible = true;
-
-  return [view, scroll];
+let setLanguage = function(view, lang) {
+  view.buffer.set_language(lang_manager.get_language(lang));
 };
 
-let paned = new Gtk.Paned();
-let [v1, s1] = createView({ language: 'js', monospace: true, show_line_numbers: true });
+let v1 = $('source-view1');
 let b1 = v1.buffer;
-paned.add1(s1);
-let [v2, s2] = createView({ language: 'js', monospace: true, show_line_numbers: false });
+setLanguage(v1, 'js');
+
+let v2 = $('source-view2');
 let b2 = v2.buffer;
-paned.add2(s2);
-paned.show();
+setLanguage(v2, 'js');
 
 let addHighlightTag = function(buffer) {
   let tag_table = buffer.get_tag_table();
@@ -243,6 +236,12 @@ let highlightTillEnd = function(buffer, name, offset) {
                            buffer.get_end_iter());
 };
 
+let highlightRegion = function(buffer, name, start, stop) {
+  buffer.apply_tag_by_name(name,
+                           buffer.get_iter_at_offset(start),
+                           buffer.get_iter_at_offset(stop));
+};
+
 let highlightLine = function(buffer, name, line) {
   buffer.apply_tag_by_name(name,
                            buffer.get_iter_at_line(line),
@@ -262,31 +261,54 @@ let genMoveLineCursorFunc = function(from, to) {
 v1.buffer.connect('notify::cursor-position', genMoveLineCursorFunc(v1.buffer, v2.buffer));
 v2.buffer.connect('notify::cursor-position', genMoveLineCursorFunc(v2.buffer, v1.buffer));
 
-let win = new Gtk.Window();
+let win = $('window');
 win.connect('destroy', Gtk.main_quit);
-
-let box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, visible: true });
-win.add(box);
-
-box.pack_start(paned, true, true, 0);
-box.pack_start(errorLabel, false, false, 0);
-
 win.show();
 
 const WIDTH = 800
 win.resize(WIDTH, 600);
-paned.position = WIDTH / 2;
+$('paned').position = WIDTH / 2;
 
 /**/
 
 let _codeId = 0;
 let _events = [];
 let _rerenderTimeoutId = 0;
+
+let filterEvents = function(events) {
+  let filteredEvents = events;
+  if ($('replay-events-button').active) {
+    nbEvents = Math.min(Math.floor($('events-scale').adjustment.value), events.length);
+    filteredEvents = [];
+    let mapEvents = {};
+    for (let i = nbEvents - 1; i >= 0; i--) {
+      let ev = events[i];
+      let key = ev.start + '-' + ev.stop;
+      if (!mapEvents[key]) {
+        mapEvents[key] = ev;
+        filteredEvents.unshift(ev);
+      }
+    }
+  }
+  return filteredEvents;
+};
+
 let _rerenderEvents = function() {
+  let events = filterEvents(_events);
+  let lastEvent = events.length > 0 ? events[events.length - 1] : null;
+
   let input = b1.get_text(b1.get_start_iter(),
                           b1.get_end_iter(),
                           false);
-  v2.buffer.set_text(eventsToString(input, _events), -1);
+  v2.buffer.set_text(eventsToString(input, events), -1);
+  $('events-scale').adjustment.upper = _events.length;
+  $('events-scale').adjustment.value = Math.min($('events-scale').adjustment.value, _events.length);
+  if ($('replay-events-button').active && lastEvent && lastEvent.start !== undefined) {
+    removeHighlights(b1, 'highlight');
+    removeHighlights(b2, 'highlight');
+    highlightRegion(b1, 'highlight', lastEvent.start, lastEvent.stop);
+    highlightLine(b2, 'highlight', indexToLine(input, lastEvent.start));
+  }
 
   _rerenderTimeoutId = 0;
   return false;
@@ -311,6 +333,11 @@ let addEvent = function(error, cmd) {
   renderEvents();
 };
 
+let resetEvents = function() {
+  _events = [];
+  $('events-scale').adjustment.upper = 0;
+};
+
 let sendCommand = null;
 let restartHelper = function() {
   sendCommand = startHelper(addEvent, restartHelper);
@@ -323,7 +350,7 @@ v1.buffer.connect('changed', function() {
                           b1.get_end_iter(),
                           false);
   try {
-    _events = [];
+    resetEvents();
     renderEvents();
     let translatedCode = translate(input);
     removeHighlights(b1, 'error');
@@ -333,12 +360,21 @@ v1.buffer.connect('changed', function() {
     log(e);
     if (e.idx)
       highlightTillEnd(b1, 'error', e.idx);
-    errorLabel.label = 'Translation error: ' + e + ' line: ' + indexToPosition(input, e.idx);
+    $('error-label').label = 'Translation error: ' + e + ' line: ' + indexToLine(input, e.idx);
   }
 });
 
+let refreshUi = function() {
+  $('events-scale').sensitive = $('replay-events-button').active;
+  _rerenderEvents();
+};
+
+$('replay-events-button').connect('toggled', refreshUi);
+$('events-scale').adjustment.connect('value-changed', _rerenderEvents);
+
 /**/
 
+refreshUi();
 v1.buffer.set_text(Utils.loadFile(ARGV[0]), -1);
 
 Gtk.main();

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.19.0 -->
+<interface>
+  <requires lib="gtk+" version="3.12"/>
+  <requires lib="gtksourceview" version="3.0"/>
+  <object class="GtkAdjustment" id="adjustment1">
+    <property name="upper">100</property>
+    <property name="step_increment">1</property>
+    <property name="page_increment">10</property>
+  </object>
+  <object class="GtkWindow" id="window">
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkBox" id="box1">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkPaned" id="paned">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="position">200</property>
+            <child>
+              <object class="GtkScrolledWindow" id="scrolledwindow1">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="shadow_type">in</property>
+                <child>
+                  <object class="GtkSourceView" id="source-view1">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="left_margin">2</property>
+                    <property name="right_margin">2</property>
+                    <property name="monospace">True</property>
+                    <property name="show_line_numbers">True</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="resize">False</property>
+                <property name="shrink">True</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkScrolledWindow" id="scrolledwindow2">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="shadow_type">in</property>
+                <child>
+                  <object class="GtkSourceView" id="source-view2">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="left_margin">2</property>
+                    <property name="right_margin">2</property>
+                    <property name="monospace">True</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="resize">True</property>
+                <property name="shrink">True</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">True</property>
+            <property name="fill">True</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkBox" id="box2">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <child>
+              <object class="GtkCheckButton" id="replay-events-button">
+                <property name="label" translatable="yes">Replay events</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="xalign">0</property>
+                <property name="draw_indicator">True</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkScale" id="events-scale">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="adjustment">adjustment1</property>
+                <property name="draw_value">False</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel" id="error-label">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
