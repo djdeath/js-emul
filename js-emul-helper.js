@@ -17,10 +17,10 @@ let toFunction = function(code) {
   return eval('(function () {return function($v, $e) {' + code + '};})()');
 };
 
-let runFunction = function(id, func) {
+let runFunction = function(runId, func) {
   let v = function(start, stop, name, value) {
     if (typeof value !== 'function') {
-      sendEvent(id, { type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
+      sendEvent(runId, { type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
     }
     return value;
   };
@@ -32,7 +32,7 @@ let runFunction = function(id, func) {
     else
       events[id] = 0;
     if (events[id] > 1000) {
-      sendEvent(id, { type: 'runtime-error', start: start, stop: stop, error: { message: 'Infinite loop' }});
+      sendEvent(runId, { type: 'runtime-error', start: start, stop: stop, error: { message: 'Infinite loop' }});
       let err = new Error('Infinite loop');
       err.runtime = true;
       throw err;
