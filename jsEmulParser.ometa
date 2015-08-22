@@ -20,12 +20,13 @@ let BSJSParser = ometa(BaseStrParser) {
                | '\'' (escapeChar | ~'\'' char)*:cs '\''                             -> [#string, cs.join('')]
                | '"'  (escapeChar | ~'"'  char)*:cs '"'                              -> [#string, cs.join('')]
                | ('#' | '`') iName:n                                                 -> [#string, n],
-  special      = ( '('   | ')'    | '{'    | '}'     | '['    | ']'     | ','
-                 | ';'   | '?'    | ':'    | ``!=='' | ``!='' | ``==='' | ``==''
-                 | ``='' | ``>='' | '>'    | ``<=''  | '<'    | ``++''  | ``+=''
-                 | '+'   | ``--'' | ``-='' | '-'     | ``*='' | '*'     | ``/=''
-                 | '/'   | ``%='' | '%'    | ``&&='' | ``&&'' | ``||='' | ``||''
-                 | '.'   | '!'                                                   ):s -> [s, s],
+  special      = ( '('     | ')'     | '{'     | '}'     | '['     | ']'
+                 | ','     | ';'     | '?'     | ':'     | ``!=='' | ``!=''
+                 | ``==='' | ``==''  | ``=''   | ``>>='' | ``>>>'' | ``>>''
+                 | ``>=''  | '>'     | ``<<='' | ``<=''  | ``<<''  | '<'
+                 | ``++''  | ``+=''  | '+'     | ``--''  | ``-=''  | '-'
+		 | ``*=''  | '*'     | ``/=''  | '/'     | ``%=''  | '%'
+	         | ``&&='' | ``&&''  | ``||='' | ``||''  | '.'     | '!'         ):s -> [s, s],
   tok          = spaces (name | keyword | number | str | special),
   toks         = token*:ts spaces end                                                -> ts,
   token :tt    = tok:t ?(t[0] == tt)                                                 -> t[1],
@@ -39,6 +40,8 @@ let BSJSParser = ometa(BaseStrParser) {
                           | "%="  expr:rhs                                           -> [#mset, e, "%",  rhs, @location]
                           | "&&=" expr:rhs                                           -> [#mset, e, "&&", rhs, @location]
                           | "||=" expr:rhs                                           -> [#mset, e, "||", rhs, @location]
+                          | ">>=" expr:rhs                                           -> [#mset, e, ">>", rhs, @location]
+                          | "<<=" expr:rhs                                           -> [#mset, e, "<<", rhs, @location]
                           | empty                                                    -> e
                           ),
   orExpr       = orExpr:x "||" andExpr:y                                             -> [#binop, "||", x, y]
@@ -57,6 +60,11 @@ let BSJSParser = ometa(BaseStrParser) {
                            | "<="         addExpr:y                                  -> [#binop, "<=",         x, y]
                            | "instanceof" addExpr:y                                  -> [#binop, "instanceof", x, y]
                            )
+               | shiftExpr,
+  shiftExpr    = shiftExpr:x ( ">>"  addExpr:y                                       -> [#binop, ">>",         x, y]
+                             | "<<"  addExpr:y                                       -> [#binop, "<<",         x, y]
+                             | ">>>" addExpr:y                                       -> [#binop, ">>>",        x, y]
+                             )
                | addExpr,
   addExpr      = addExpr:x "+" mulExpr:y                                             -> [#binop, "+",          x, y]
                | addExpr:x "-" mulExpr:y                                             -> [#binop, "-",          x, y]
