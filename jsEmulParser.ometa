@@ -26,7 +26,8 @@ let BSJSParser = ometa(BaseStrParser) {
                  | ``>=''  | '>'     | ``<<='' | ``<=''  | ``<<''  | '<'
                  | ``++''  | ``+=''  | '+'     | ``--''  | ``-=''  | '-'
 		 | ``*=''  | '*'     | ``/=''  | '/'     | ``%=''  | '%'
-	         | ``&&='' | ``&&''  | ``||='' | ``||''  | '.'     | '!'         ):s -> [s, s],
+                 | ``|=''  | ``&=''  | ``&&='' | ``&&''  | ``||='' | ``||''
+                 | '.'     | '!'                                            ):s      -> [s, s],
   tok          = spaces (name | keyword | number | str | special),
   toks         = token*:ts spaces end                                                -> ts,
   token :tt    = tok:t ?(t[0] == tt)                                                 -> t[1],
@@ -38,6 +39,8 @@ let BSJSParser = ometa(BaseStrParser) {
                           | "*="  expr:rhs                                           -> [#mset, e, "*",  rhs, @location]
                           | "/="  expr:rhs                                           -> [#mset, e, "/",  rhs, @location]
                           | "%="  expr:rhs                                           -> [#mset, e, "%",  rhs, @location]
+                          | "|="  expr:rhs                                           -> [#mset, e, "|",  rhs, @location]
+                          | "&="  expr:rhs                                           -> [#mset, e, "&",  rhs, @location]
                           | "&&=" expr:rhs                                           -> [#mset, e, "&&", rhs, @location]
                           | "||=" expr:rhs                                           -> [#mset, e, "||", rhs, @location]
                           | ">>=" expr:rhs                                           -> [#mset, e, ">>", rhs, @location]
