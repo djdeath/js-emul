@@ -1,17 +1,11 @@
 const Gio = imports.gi.Gio;
 const Mainloop = imports.mainloop;
 
+const helperProcess = imports.helperProcess;
+
 log('starting!');
 
-let inputStream = new Gio.UnixInputStream({ fd: 0,
-                                            close_fd: false, });
-let outpuStream = new Gio.UnixOutputStream({ fd: 1,
-                                             close_fd: false, });
-let inputDataStream = Gio.DataInputStream.new(inputStream);
-
-let sendEvent = function(id, event) {
-  outpuStream.write_all(JSON.stringify({id: id, event: event}) + '\n', null);
-};
+let sendEvent = null;
 
 let toFunction = function(code) {
   return eval('(function () {return function($v, $e) {' + code + '};})()');
@@ -41,35 +35,27 @@ let runFunction = function(runId, func) {
   func(v, e);
 };
 
-let handleCommand = function(cmd) {
-  try {
-    runFunction(cmd.id, toFunction(cmd.code));
-  } catch (e) {
-    log('function error: ' + e);
-    if (!e.runtime) {
-      sendEvent(cmd.id, { type: 'error', error: { message: e.message }});
-    }
-  }
-};
+/**/
 
-let readLine = null, gotLine = null;
-gotLine = function(stream, res) {
-  try {
-    let [data, length] = inputDataStream.read_line_finish(res);
-    if (length > 0) {
-      readLine();
-      handleCommand(JSON.parse(data));
-    } else {
-      throw new Error('Error reading input stream');
+let sendCommand = helperProcess.startListener(
+  function(message) {
+    try {
+      runFunction(message.id, toFunction(message.code));
+    } catch (e) {
+      log('function error: ' + e);
+      if (!e.runtime) {
+        sendEvent(message.id, { type: 'error', error: { message: e.message }});
+      }
     }
-  } catch (e) {
-    log('quitting: ' + e.message);
+  },
+  function(error) {
+    log(error.message);
     Mainloop.quit('js-emul-helper');
-  }
-};
-readLine = function() {
-  inputDataStream.read_line_async(0, null, gotLine.bind(this));
+  });
+
+sendEvent = function(id, event) {
+  sendCommand({id: id, event: event});
 };
 
-readLine();
+
 Mainloop.run('js-emul-helper');

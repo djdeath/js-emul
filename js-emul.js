@@ -4,6 +4,7 @@ const Gtk = imports.gi.Gtk;
 const GtkSource = imports.gi.GtkSource;
 const Mainloop = imports.mainloop;
 
+const helperProcess = imports.helperProcess;
 const jsEmul = imports.jsEmul;
 const Utils = imports.Utils;
 
@@ -11,91 +12,6 @@ if (ARGV.length < 1)
   throw new Error("Need at least one argument");
 
 let lang_manager = GtkSource.LanguageManager.get_default();
-
-/*
-  TODO: make this a lib...
- */
-let startHelper = function(eventCallback, errorCallback) {
-  const _DEBUG_IO = false;
-  let _debugIo = function(pre, data) {
-    if (_DEBUG_IO) log(pre + data);
-  };
-
-  let [success, pid, inputFd, outputFd, errorFd] =
-      GLib.spawn_async_with_pipes(null,
-                                  ['./js-emul-helper'],
-                                  GLib.get_environ(),
-                                  GLib.SpawnFlags.DEFAULT,
-                                  null);
-  log('input: ' + inputFd);
-  log('output: ' + outputFd);
-  log('error: ' + errorFd);
-  let _inputStream = new Gio.UnixInputStream({ fd: outputFd,
-                                               close_fd: true, });
-  let _errorStream = new Gio.UnixInputStream({ fd: errorFd,
-                                               close_fd: true, });
-  let _outputStream = new Gio.UnixOutputStream({ fd: inputFd,
-                                                 close_fd: true, });
-
-  let _shutdownServer = function() {
-    try {
-      _inputStream.close(null);
-      _outputStream.close(null);
-      _errorStream.close(null);
-      GLib.spawn_close_pid(pid);
-    } catch (e) {}
-    errorCallback();
-  };
-
-  let _readLine = function(stream, process) {
-    stream.read_line_async(0, null, function(stream, res) {
-      try {
-        let [data, length] = stream.read_line_finish(res);
-        if (length > 0) {
-          _readLine(stream, process);
-          process(data);
-        } else {
-          log('Server read error : ' + stream.base_stream.fd);
-          //_readLine(stream, process);
-          _shutdownServer();
-        }
-      } catch (error) {
-        log('Server connection error : ' + error);
-        _shutdownServer();
-      }
-    });
-  };
-
-  _readLine(Gio.DataInputStream.new(_inputStream), function(data) {
-    try {
-      _debugIo('IN: ', data);
-      let cmd = JSON.parse(data);
-
-      if (cmd.error) {
-        let error = new Error();
-        for (let i in cmd.error)
-          error[i] = cmd.error[i];
-        eventCallback(error);
-      }
-      else
-        eventCallback(null, cmd);
-    } catch (error) {
-      log('Client: ' + error);
-      log(error.stack);
-    }
-  }.bind(this));
-  _readLine(Gio.DataInputStream.new(_errorStream), function(data) {
-    log('Server: ' + data);
-  }.bind(this));
-
-  let sendCommand = function(cmd) {
-    let data = JSON.stringify(cmd);
-    _debugIo('OUT: ', data);
-    _outputStream.write_all(data + '\n', null);
-  };
-
-  return sendCommand;
-};
 
 /**/
 
@@ -340,7 +256,9 @@ let resetEvents = function() {
 
 let sendCommand = null;
 let restartHelper = function() {
-  sendCommand = startHelper(addEvent, restartHelper);
+  sendCommand = helperProcess.startServer('./js-emul-helper',
+                                          addEvent,
+                                          restartHelper);
 };
 
 restartHelper();
