@@ -8,7 +8,7 @@ const helperProcess = imports.helperProcess;
 const jsEmul = imports.jsEmul;
 const Utils = imports.Utils;
 
-let filename = ARGV.length < 1 ? '~/.jsEmul' : ARGV[0];
+let filename = ARGV.length < 1 ? (GLib.getenv('HOME') + '/.jsEmul') : ARGV[0];
 
 /**/
 
