@@ -8,15 +8,13 @@ const helperProcess = imports.helperProcess;
 const jsEmul = imports.jsEmul;
 const Utils = imports.Utils;
 
-if (ARGV.length < 1)
-  throw new Error("Need at least one argument");
-
-let lang_manager = GtkSource.LanguageManager.get_default();
+let filename = ARGV.length < 1 ? '~/.jsEmul' : ARGV[0];
 
 /**/
 
 Gtk.init(null, null);
 
+let lang_manager = GtkSource.LanguageManager.get_default();
 let builder = new Gtk.Builder();
 builder.add_from_file('js-emul-ui.ui');
 
@@ -273,7 +271,7 @@ v1.buffer.connect('changed', function() {
     let translatedCode = translate(input);
     removeHighlights(b1, 'error');
     sendCommand({ code: translatedCode, id: ++_codeId });
-    Utils.delayedSaveFile(ARGV[0], input);
+    Utils.delayedSaveFile(filename, input);
   } catch (e) {
     log(e);
     if (e.idx)
@@ -293,6 +291,6 @@ $('events-scale').adjustment.connect('value-changed', _rerenderEvents);
 /**/
 
 refreshUi();
-v1.buffer.set_text(Utils.loadFile(ARGV[0]), -1);
+v1.buffer.set_text(Utils.loadFile(filename), -1);
 
 Gtk.main();
