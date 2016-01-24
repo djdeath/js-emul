@@ -14,7 +14,7 @@ let toFunction = function(code) {
 let runFunction = function(runId, func) {
   let v = function(start, stop, name, value) {
     if (typeof value !== 'function') {
-      sendEvent(runId, { type: 'event', start: start, stop: stop, name: name, value: JSON.stringify(value) });
+      sendEvent(runId, { type: 'event', start: start, stop: stop, name: name, value: value });
     }
     return value;
   };

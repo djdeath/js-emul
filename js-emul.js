@@ -18,8 +18,13 @@ let lang_manager = GtkSource.LanguageManager.get_default();
 let builder = new Gtk.Builder();
 builder.add_from_file('js-emul-ui.ui');
 
-let $ = function(id) {
-  return builder.get_object(id);
+let $ = function(id) { return builder.get_object(id); };
+
+/**/
+
+let getAppState = function() {
+  return { numbersInHexa: $('numbers-hexa').active,
+           numbersInBinary: $('numbers-binary').active };
 };
 
 /**/
@@ -40,11 +45,26 @@ let indexToLine = function(source, idx) {
 
 let eventsToString = function(input, events) {
   let lines = [], currentLines = [], maxLine = -1, lastLine = -1;
+  let appState = getAppState();
+
+  let valueToString = function(value) {
+    let ret = '<error>';
+    if (typeof value == 'number') {
+      ret = value;
+      if (appState.numbersInHexa)
+        ret += ' - 0x' + value.toString(16);
+      if (appState.numbersInBinary)
+        ret += ' - 0b' + value.toString(2);
+    } else {
+      ret = JSON.stringify(value);
+    }
+    return ret;
+  };
 
   let eventToString = function(event) {
     switch (event.type) {
     case 'event':
-      return event.name + ' = ' + event.value;
+      return event.name + ' = ' + valueToString(event.value);
     case 'runtime-error':
     case 'error':
       return 'Error: ' + event.error.message;
@@ -286,7 +306,10 @@ let refreshUi = function() {
 };
 
 $('replay-events-button').connect('toggled', refreshUi);
+$('numbers-hexa').connect('toggled', refreshUi);
+$('numbers-binary').connect('toggled', refreshUi);
 $('events-scale').adjustment.connect('value-changed', _rerenderEvents);
+$('close-button').connect('clicked', Gtk.main_quit);
 
 /**/
 
