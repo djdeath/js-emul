@@ -64,9 +64,9 @@ let eventsToString = function(input, events) {
     if (typeof value == 'number') {
       ret = value;
       if (appState.numbersInHexa)
-        ret += ' - 0x' + splitString(value.toString(16));
+        ret += ' | 0x' + splitString(value.toString(16));
       if (appState.numbersInBinary)
-        ret += ' - 0b' + splitString(value.toString(2));
+        ret += ' | 0b' + splitString(value.toString(2));
     } else {
       ret = JSON.stringify(value);
     }
