@@ -11,7 +11,9 @@ let BSJSParser = ometa(BaseStrParser) {
   hexDigit     = char:x {this.hexDigits.indexOf(x.toLowerCase())}:v ?(v >= 0)        -> v,
   hexLit       = hexLit:n hexDigit:d                                                 -> (n * 16 + d)
                | hexDigit,
+  binDigit     = char:x ?(x == '0' || x == '1')                                      -> x,
   number       = ``0x'' hexLit:n                                                     -> [#number, n]
+               | ``0b'' <binDigit+>:b                                                -> [#number, parseInt(b, 2)]
                | <digit+ ('.' digit+)?>:f                                            -> [#number, parseFloat(f)],
   escapeChar   = <'\\' ( 'u' hexDigit hexDigit hexDigit hexDigit
                        | 'x' hexDigit hexDigit
