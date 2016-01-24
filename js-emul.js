@@ -47,14 +47,26 @@ let eventsToString = function(input, events) {
   let lines = [], currentLines = [], maxLine = -1, lastLine = -1;
   let appState = getAppState();
 
+  let splitString = function(str) {
+    let offset = str.length % 4;
+    let ret = str.substr(0, offset);
+    let arr = str.substr(offset).match(/.{1,4}/g);
+    if (arr) {
+      ret += (ret.length > 0) ? (' ' + arr[0]) : arr[0];
+      for (let i = 1; i < arr.length; i++)
+        ret += ' ' + arr[i];
+    }
+    return ret;
+  };
+
   let valueToString = function(value) {
     let ret = '<error>';
     if (typeof value == 'number') {
       ret = value;
       if (appState.numbersInHexa)
-        ret += ' - 0x' + value.toString(16);
+        ret += ' - 0x' + splitString(value.toString(16));
       if (appState.numbersInBinary)
-        ret += ' - 0b' + value.toString(2);
+        ret += ' - 0b' + splitString(value.toString(2));
     } else {
       ret = JSON.stringify(value);
     }
