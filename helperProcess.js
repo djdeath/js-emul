@@ -14,18 +14,18 @@ let startServer = function(binary, eventCallback, errorCallback) {
                                   GLib.get_environ(),
                                   GLib.SpawnFlags.DEFAULT,
                                   null);
-  let _inputStream = new Gio.UnixInputStream({ fd: outputFd,
+  let inputStream = new Gio.UnixInputStream({ fd: outputFd,
                                                close_fd: true, });
-  let _errorStream = new Gio.UnixInputStream({ fd: errorFd,
+  let errorStream = new Gio.UnixInputStream({ fd: errorFd,
                                                close_fd: true, });
-  let _outputStream = new Gio.UnixOutputStream({ fd: inputFd,
+  let outputStream = new Gio.UnixOutputStream({ fd: inputFd,
                                                  close_fd: true, });
 
   let _shutdownServer = function() {
     try {
-      _inputStream.close(null);
-      _outputStream.close(null);
-      _errorStream.close(null);
+      inputStream.close(null);
+      outputStream.close(null);
+      errorStream.close(null);
       GLib.spawn_close_pid(pid);
     } catch (e) {}
     errorCallback();
@@ -50,7 +50,7 @@ let startServer = function(binary, eventCallback, errorCallback) {
     });
   };
 
-  _readLine(Gio.DataInputStream.new(_inputStream), function(data) {
+  _readLine(Gio.DataInputStream.new(inputStream), function(data) {
     try {
       _debugIo('IN: ', data);
       let cmd = JSON.parse(data);
@@ -68,14 +68,14 @@ let startServer = function(binary, eventCallback, errorCallback) {
       log(error.stack);
     }
   }.bind(this));
-  _readLine(Gio.DataInputStream.new(_errorStream), function(data) {
+  _readLine(Gio.DataInputStream.new(errorStream), function(data) {
     log('Server: ' + data);
   }.bind(this));
 
   let sendCommand = function(cmd) {
     let data = JSON.stringify(cmd);
     _debugIo('OUT: ', data);
-    _outputStream.write_all(data + '\n', null);
+    outputStream.write_all(data + '\n', null);
   };
 
   return sendCommand;
